@@ -4,6 +4,7 @@ import sys
 import pygame
 
 
+
 pygame.init()
 
 # Screen dimensions
@@ -20,7 +21,7 @@ CHASER_COLOR = (231, 76, 60)  # Red
 RUNNER_COLOR = (52, 152, 219)  # Blue
 
 # Sim Constants
-RUNNER_COUNT = 30
+RUNNER_COUNT = 3
 
 
 class Agent(pygame.sprite.Sprite):
@@ -61,6 +62,10 @@ class Agent(pygame.sprite.Sprite):
 
   def redraw_arrow(self):
     """Draws the rotated arrow polygon onto the sprite's local surface."""
+
+    pygame.draw.polygon(
+          self.original_image, self.color, [(0, 0), (50, 15), (0, 30)]
+        )
     target_angle_radians = math.atan2(self.dy_moved, self.dx_moved)
 
     # Shortest path angle interpolation (handles wrapping across the -PI to +PI seam smoothly)
@@ -125,31 +130,40 @@ class Agent(pygame.sprite.Sprite):
 
 
 class Chaser(Agent):
-  #Chases the Runner
+  #Chases the closest Runner
 
-  current_target = None
+  current_target = None # Current target to chase
+  retarget_timer = 0 # Immediately get a target
 
   def __init__(self, x, y, speed, radius, color, detection_radius=200):
     super().__init__(x, y, speed, radius, color)
     self.detection_radius = detection_radius
 
+  # Update
   def update(self, targets, dt_milliseconds=0):
-    current_closest_dist = 1000
+    self.retarget_timer -= dt_milliseconds
+    # Find a new target
+    if self.retarget_timer <= 0 or self.current_target == None:
+      self.retarget_timer = 1000 # Wait for 1 sec
+      self.current_target = None # Clear current target
+      self.color = CHASER_COLOR
+      self.wander_angle = self.facing_angle # Set new wander angle
+      current_closest_dist = 1000 # Give a very large radius to find any closer target
 
-    # Iterate through the targets to find the closest
-    for target in targets:
+      # Iterate through the targets to find the closest
+      for target in targets:
+        dir_x, dir_y, dist = self.get_vector_to_wrapped(target.pos_x, target.pos_y, WIDTH, HEIGHT)
+
+        if dist < current_closest_dist:
+          current_closest_dist = dist
+          if dist <= self.detection_radius:
+            self.current_target = target
+            
+
+    if self.current_target != None: # Check if there is a target
       dir_x, dir_y, dist = self.get_vector_to_wrapped(
-        target.pos_x, target.pos_y, WIDTH, HEIGHT
+        self.current_target.pos_x,self.current_target.pos_y, WIDTH, HEIGHT
       )
-      if dist < current_closest_dist:
-        current_closest_dist = dist
-        self.current_target = target
-
-    dir_x, dir_y, dist = self.get_vector_to_wrapped(
-      self.current_target.pos_x,self.current_target.pos_y, WIDTH, HEIGHT
-    )
-
-    if dist <= self.detection_radius:
       self.dx_moved = dir_x * self.speed
       self.dy_moved = dir_y * self.speed
       self.pos_x += self.dx_moved
@@ -230,7 +244,7 @@ while running:
       running = False
 
   runners.update(chaser.pos_x, chaser.pos_y, dt)
-  chaser.update(runners)
+  chaser.update(runners, dt)
 
   # clear background image
   screen.fill(BG_COLOR)
