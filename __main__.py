@@ -19,6 +19,9 @@ BG_COLOR = (30, 30, 30)
 CHASER_COLOR = (231, 76, 60)  # Red
 RUNNER_COLOR = (52, 152, 219)  # Blue
 
+# Sim Constants
+RUNNER_COUNT = 30
+
 
 class Agent(pygame.sprite.Sprite):
   #Base class? Base class!
@@ -124,13 +127,26 @@ class Agent(pygame.sprite.Sprite):
 class Chaser(Agent):
   #Chases the Runner
 
+  current_target = None
+
   def __init__(self, x, y, speed, radius, color, detection_radius=200):
     super().__init__(x, y, speed, radius, color)
     self.detection_radius = detection_radius
 
-  def update(self, target_x, target_y, dt_milliseconds=0):
+  def update(self, targets, dt_milliseconds=0):
+    current_closest_dist = 1000
+
+    # Iterate through the targets to find the closest
+    for target in targets:
+      dir_x, dir_y, dist = self.get_vector_to_wrapped(
+        target.pos_x, target.pos_y, WIDTH, HEIGHT
+      )
+      if dist < current_closest_dist:
+        current_closest_dist = dist
+        self.current_target = target
+
     dir_x, dir_y, dist = self.get_vector_to_wrapped(
-        target_x, target_y, WIDTH, HEIGHT
+      self.current_target.pos_x,self.current_target.pos_y, WIDTH, HEIGHT
     )
 
     if dist <= self.detection_radius:
@@ -184,17 +200,25 @@ class Runner(Agent):
 
 
 # Sim Setup
+all_sprites = pygame.sprite.Group()
+runners = pygame.sprite.Group()
+
+# Create Chaser
 chaser = Chaser(
     x=100, y=100, speed=5, radius=16, color=CHASER_COLOR, detection_radius=200
 )
-runner = Runner(
-    x=400, y=300, speed=7, radius=14, color=RUNNER_COLOR, detection_radius=150
-)
+
+# Create Runners
+for _ in range(RUNNER_COUNT):
+  runner = Runner(
+      x=400, y=300, speed=7, radius=14, color=RUNNER_COLOR, detection_radius=150
+  )
+  runners.add(runner)
 
 
-all_sprites = pygame.sprite.Group()
+
 all_sprites.add(chaser)
-all_sprites.add(runner)
+all_sprites.add(runners)
 
 #Start the game loop
 running = True
@@ -205,8 +229,8 @@ while running:
     if event.type == pygame.QUIT:
       running = False
 
-  runner.update(chaser.pos_x, chaser.pos_y, dt)
-  chaser.update(runner.pos_x, runner.pos_y)
+  runners.update(chaser.pos_x, chaser.pos_y, dt)
+  chaser.update(runners)
 
   # clear background image
   screen.fill(BG_COLOR)
